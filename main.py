@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+from call_function import *
+
 from functions.get_files_info import schema_get_files_info
 from functions.get_file_content import schema_get_file_content
 from functions.write_file import schema_write_file
@@ -58,8 +60,7 @@ def main():
             print(f"Response tokens: {response_tokens}")
         
         if response.function_calls is not None:
-            for call in response.function_calls:
-                print(f"Calling function: {call.name}({dict(call.args)})")
+            call_function()
         else:
             print(response.text)
 
