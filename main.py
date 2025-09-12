@@ -42,44 +42,73 @@ def main():
         verbose = "--verbose" in sys.argv
         user_prompt = sys.argv[1]
         messages = [
-                types.Content(role="user", parts=[types.Part(text=user_prompt)]),
-        ] 
-        response = client.models.generate_content(
-                model="gemini-2.0-flash-001", 
-                contents=messages,
-                config=types.GenerateContentConfig(
-                    tools=[available_functions], system_instruction=system_prompt
+                types.Content(role="user", parts=[types.Part(text=user_prompt)]),  
+        ]
+
+        max_iterations = 20
+        current_iteration = 0
+
+        while True:
+            
+            current_iteration += 1
+
+            if current_iteration > max_iterations:
+                print(f"Maximum iterations ({max_iterations}) rached.")
+                sys.exit(1)
+
+            try:
+                response = client.models.generate_content(
+                        model="gemini-2.0-flash-001", 
+                        contents=messages,
+                        config=types.GenerateContentConfig(
+                            tools=[available_functions], system_instruction=system_prompt
+                        )
                 )
-        )
-        prompt_tokens = response.usage_metadata.prompt_token_count
-        response_tokens = response.usage_metadata.candidates_token_count
-                    
-        if verbose:
-            print(f"User prompt: {user_prompt}")
-            print(f"Prompt tokens: {prompt_tokens}")
-            print(f"Response tokens: {response_tokens}")
-        
-        if not response.candidates or not response.candidates[0].content.parts:
-            print("No valid response from the model.")
-            sys.exit(1)
 
-        part = response.candidates[0].content.parts[0]
+                model_content = response.candidates[0].content
+                messages.append(model_content)
 
-        if not hasattr(part, "function_call") or not part.function_call:
-            if hasattr(part, "text") and part.text:
-                print(part.text)
-            else:
-                print("No function call in the model's response.")
-            sys.exit(1)
-        
-        function_call_part = part.function_call
-        function_call_result = call_function(function_call_part, verbose=verbose)
+                try:
+                    final_text = response.text
+                    print("Final response: ")
+                    print(final_text)
+                    break
+                except ValueError:
+                    pass
 
-        if not function_call_result.parts or not hasattr(function_call_result.parts[0], "function_response"):
-            raise ValueError("Invalid function call result: No function response found.")
-        
-        if verbose:
-            print(f"-> {function_call_result.parts[0].function_response.response}")
+                prompt_tokens = response.usage_metadata.prompt_token_count
+                response_tokens = response.usage_metadata.candidates_token_count
+                            
+                if verbose:
+                    print(f"User prompt: {user_prompt}")
+                    print(f"Prompt tokens: {prompt_tokens}")
+                    print(f"Response tokens: {response_tokens}")
+                
+                if not response.candidates or not response.candidates[0].content.parts:
+                    print("No valid response from the model.")
+                    sys.exit(1)
+
+                part = response.candidates[0].content.parts[0]
+
+                # if not hasattr(part, "function_call") or not part.function_call:
+                #     if hasattr(part, "text") and part.text:
+                #         print(part.text)
+                #     else:
+                #         print("No function call in the model's response.")
+                #     sys.exit(1)
+                
+                # function_call_part = part.function_call
+                # function_call_result = call_function(function_call_part, verbose=verbose)
+
+                # if not function_call_result.parts or not hasattr(function_call_result.parts[0], "function_response"):
+                #     raise ValueError("Invalid function call result: No function response found.")
+                
+                # if verbose:
+                #     print(f"-> {function_call_result.parts[0].function_response.response}")
+
+            except Exception as e:
+                print(f"Error: {e}")
+                sys.exit(1)
 
 if __name__ == "__main__":
     main()
