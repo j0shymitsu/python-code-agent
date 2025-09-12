@@ -21,24 +21,14 @@ def call_function(function_call_part, verbose=False):
     kwargs = dict(function_call_part.args)
     kwargs["working_directory"] = "./calculator"
 
-    if verbose == True:
-        print(f"Calling function: {function_call_part.name}({function_call_part.args})")
+    if verbose:
+        print(f"Calling function: {fn_name}({function_call_part.args})")
     else:
-        print(f" - Calling function: {function_call_part.name}")
+        print(f" - Calling function: {fn_name}")
 
-    try:
-        fn = FUNCTIONS.get(fn_name)
-        return types.Content(
-            role="tool",
-            parts=[
-                types.Part.from_function_response(
-                    name=fn_name,
-                    response={"result": fn},
-                )
-            ],
-        )
+    fn = FUNCTIONS.get(fn_name)
 
-    except Exception as e:
+    if fn is None:
         return types.Content(
             role="tool",
             parts=[
@@ -48,3 +38,19 @@ def call_function(function_call_part, verbose=False):
                 )
             ],
         )
+    
+    result = fn(**kwargs)
+
+    return types.Content(
+        role="tool",
+        parts=[
+            types.Part.from_function_response(
+                name=fn_name,
+                response={"result": result},
+            )
+        ],
+    )
+
+
+
+        

@@ -53,16 +53,33 @@ def main():
         )
         prompt_tokens = response.usage_metadata.prompt_token_count
         response_tokens = response.usage_metadata.candidates_token_count
-        
+                    
         if verbose:
             print(f"User prompt: {user_prompt}")
             print(f"Prompt tokens: {prompt_tokens}")
             print(f"Response tokens: {response_tokens}")
         
-        if response.function_calls is not None:
-            call_function()
-        else:
-            print(response.text)
+        if not response.candidates or not response.candidates[0].content.parts:
+            print("No valid response from the model.")
+            sys.exit(1)
+
+        part = response.candidates[0].content.parts[0]
+
+        if not hasattr(part, "function_call") or not part.function_call:
+            if hasattr(part, "text") and part.text:
+                print(part.text)
+            else:
+                print("No function call in the model's response.")
+            sys.exit(1)
+        
+        function_call_part = part.function_call
+        function_call_result = call_function(function_call_part, verbose=verbose)
+
+        if not function_call_result.parts or not hasattr(function_call_result.parts[0], "function_response"):
+            raise ValueError("Invalid function call result: No function response found.")
+        
+        if verbose:
+            print(f"-> {function_call_result.parts[0].function_response.response}")
 
 if __name__ == "__main__":
     main()
