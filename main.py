@@ -33,82 +33,88 @@ available_functions = types.Tool(
 )
 
 def main():
-    print("Hello from ai-agent!\n")
-    
+    print('Hello from ai-agent!\n')
+    args = []
+
     if len(sys.argv) < 2:
         print("Please enter a prompt.")
         sys.exit(1)
     else:
         verbose = "--verbose" in sys.argv
         user_prompt = sys.argv[1]
-        messages = [
-                types.Content(role="user", parts=[types.Part(text=user_prompt)]),  
-        ]
 
-        max_iterations = 20
-        current_iteration = 0
+    for arg in sys.argv[1:]:
+        if not arg.startswith("--"):
+            args.append(arg)
 
-        while True:
-            
-            current_iteration += 1
+    if not args:
+        print('\nUsage: python main.py "[insert your prompt]" [--verbose]')
+        print('Example: python main.py "How do I fix the calculator?"')
 
-            if current_iteration > max_iterations:
-                print(f"Maximum iterations ({max_iterations}) rached.")
-                sys.exit(1)
+    api_key = os.environ.get('GEMINI_API_KEY')
+    client = genai.Client(api_key=api_key)
 
-            try:
-                response = client.models.generate_content(
-                        model="gemini-2.0-flash-001", 
-                        contents=messages,
-                        config=types.GenerateContentConfig(
-                            tools=[available_functions], system_instruction=system_prompt
-                        )
-                )
+    user_prompt = " ".join(args)
 
-                model_content = response.candidates[0].content
-                messages.append(model_content)
+    if verbose:
+        print(f'User prompt: {user_prompt}\n')
+        print("Declared tools:", [fd.name for fd in available_functions.function_declarations])
 
-                try:
-                    final_text = response.text
-                    print("Final response: ")
-                    print(final_text)
-                    break
-                except ValueError:
-                    pass
+    messages = [
+        types.Content(role='user', parts=[types.Part(text=user_prompt)])
+    ]
 
-                prompt_tokens = response.usage_metadata.prompt_token_count
-                response_tokens = response.usage_metadata.candidates_token_count
-                            
-                if verbose:
-                    print(f"User prompt: {user_prompt}")
-                    print(f"Prompt tokens: {prompt_tokens}")
-                    print(f"Response tokens: {response_tokens}")
-                
-                if not response.candidates or not response.candidates[0].content.parts:
-                    print("No valid response from the model.")
-                    sys.exit(1)
+    max_iterations = 20
+    current_iteration = 0
 
-                part = response.candidates[0].content.parts[0]
+    while True:
+        current_iteration += 1
 
-                # if not hasattr(part, "function_call") or not part.function_call:
-                #     if hasattr(part, "text") and part.text:
-                #         print(part.text)
-                #     else:
-                #         print("No function call in the model's response.")
-                #     sys.exit(1)
-                
-                # function_call_part = part.function_call
-                # function_call_result = call_function(function_call_part, verbose=verbose)
+        if current_iteration > max_iterations:
+            print(f"Maximum iterations ({max_iterations}) reached.")
+            sys.exit(1)
 
-                # if not function_call_result.parts or not hasattr(function_call_result.parts[0], "function_response"):
-                #     raise ValueError("Invalid function call result: No function response found.")
-                
-                # if verbose:
-                #     print(f"-> {function_call_result.parts[0].function_response.response}")
+        try:
+            response = generate_content(client, messages, verbose)
 
-            except Exception as e:
-                print(f"Error: {e}")
-                sys.exit(1)
+            for cand in response.candidates:
+                messages.append(cand.content)
+
+            if response.function_calls:
+                function_responses = []
+
+                for part in response.function_calls:
+                    fr = call_function(part, verbose)
+                    function_responses.append(fr.parts[0])
+
+                messages.append(types.Content(role="user", parts=function_responses))
+                continue
+
+            if response.text:
+                print(response.text)
+                break
+
+        except Exception as e:
+            print(f"Error: {e}")
+            sys.exit(1)
+
+
+def generate_content(client, messages, verbose):
+    
+    response = client.models.generate_content(
+        model = 'gemini-2.0-flash-001',
+        contents = messages,
+        config = types.GenerateContentConfig(
+            tools = [available_functions], system_instruction=system_prompt
+        ),
+    )
+
+    if verbose:
+        print("Prompt tokens: ", response.usage_metadata.prompt_token_count)
+        print("Response tokens: ", response.usage_metadata.candidates_token_count)
+
+    return response
+
 
 if __name__ == "__main__":
     main()
