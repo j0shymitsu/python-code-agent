@@ -33,19 +33,20 @@ available_functions = types.Tool(
 )
 
 def main():
+    verbose = False
+    user_prompt = "Why is Boot.dev such a great place to learn backend development? Use one paragraph maximum."
+    args = []
     print('Hello from ai-agent!\n')
     args = []
 
-    if len(sys.argv) < 2:
-        print("Please enter a prompt.")
-        sys.exit(1)
-    else:
+    if len(sys.argv) >= 2:
         verbose = "--verbose" in sys.argv
-        user_prompt = sys.argv[1]
+        for arg in sys.argv[1:]:
+            if not arg.startswith("--"):
+                args.append(arg)
 
-    for arg in sys.argv[1:]:
-        if not arg.startswith("--"):
-            args.append(arg)
+    if args:
+        user_prompt = " ".join(args)
 
     if not args:
         print('\nUsage: python main.py "[insert your prompt]" [--verbose]')
@@ -54,11 +55,8 @@ def main():
     api_key = os.environ.get('GEMINI_API_KEY')
     client = genai.Client(api_key=api_key)
 
-    user_prompt = " ".join(args)
-
-    if verbose:
-        print(f'User prompt: {user_prompt}\n')
-        print("Declared tools:", [fd.name for fd in available_functions.function_declarations])
+    print(f'User prompt: {user_prompt}\n')
+    print("Declared tools:", [fd.name for fd in available_functions.function_declarations])
 
     messages = [
         types.Content(role='user', parts=[types.Part(text=user_prompt)])
@@ -76,6 +74,9 @@ def main():
 
         try:
             response = generate_content(client, messages, verbose)
+
+            if response.usage_metadata is None:
+                raise RuntimeError("Failed API request.")
 
             for cand in response.candidates:
                 messages.append(cand.content)
@@ -96,7 +97,10 @@ def main():
 
         except Exception as e:
             print(f"Error: {e}")
-            sys.exit(1)
+            # Fallback
+            print("Prompt tokens: 0")
+            print("Response tokens: 0")
+            break
 
 
 def generate_content(client, messages, verbose):
@@ -109,9 +113,8 @@ def generate_content(client, messages, verbose):
         ),
     )
 
-    if verbose:
-        print("Prompt tokens: ", response.usage_metadata.prompt_token_count)
-        print("Response tokens: ", response.usage_metadata.candidates_token_count)
+    print("Prompt tokens: ", response.usage_metadata.prompt_token_count)
+    print("Response tokens: ", response.usage_metadata.candidates_token_count)
 
     return response
 
